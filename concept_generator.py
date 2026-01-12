@@ -16,7 +16,7 @@ from pathlib import Path
 class ConceptGenerator:
     def __init__(self, df_file, col_data, col_names):
         self.df = pd.read_csv(df_file)
-        # self.df = self.df.drop(columns=[""]) # rimozione delle colonne se necessario
+        # self.df = self.df.drop(columns=[""]) ## remove column if needed (es: flow_id, timestamp, etc) from SOURCE dataset
         self.df['label'] = self.df['label'].map({'Benign': 0, 'Attack': 1})
         self.df = self.df.rename(columns={'label': 'macro_clusters'})
         # Rimuovi le righe con NaN
@@ -383,7 +383,8 @@ class ConceptGenerator:
         da modificare in termini di percorsi assoluti per poter effettivamente
         avere un percorso assoluto
         '''
-        cartella =  "results_cdsg_directory"
+        base_path = Path.cwd()
+        cartella = base_path / "results_cdsg_directory"
         cartella.mkdir(parents=True, exist_ok=True)
         file_path = cartella / filedf
         df.to_csv(file_path, index=False)

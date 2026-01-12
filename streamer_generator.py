@@ -27,6 +27,8 @@ class StreamerGen:
         - anomaly indica quanto un campione non appartenente al concept possa essere visto come outlier rispetto al concept stesso
         Nel caso in cui i dati siano bidimensionali allora è possibile plottare le prime due dimensioni.
         Eventualmente disabilitare plotting o prevedere un metodo interno che faccia copia delle utils ma riduca la dimensionalità
+
+        Questo dataset si trova all'interno della cartella creata dal generatore che contiene il concept_df.csv
         '''
         self.df = pd.read_csv(os.path.join(os.getcwd(), dataframe_name))
         self.plotting = plotting
@@ -326,7 +328,7 @@ class StreamerGen:
         return sampled_df
 
     
-    def recurrent_drift_generator(self, win_size, start_drift, rec_drift, perc_malignant_concept, perc_malignant_drift, save_stream=False, plot_window=False, filename='streaming.csv', intensity_mode='auto'):
+    def recurrent_drift_generator(self, win_size, start_drift, rec_drift, perc_malignant_concept, perc_malignant_drift, nome_file_parametri, save_stream=False, plot_window=False, filename='streaming.csv', intensity_mode='auto'):
         '''
         Descrizione:
             Questa funzione permette di generare un sudden drift recurrrent (del tipo A-B-A) a partire da un dataframe passato in input
