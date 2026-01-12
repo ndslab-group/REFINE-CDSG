@@ -7,15 +7,16 @@ if __name__ == "__main__":
     In particular, we suppose to have already a source dataset in the datasets/ folder.
 
     We will generate a concept dataset and then a data stream with both sudden and recurrent drifts,
-    starting from the same concept dataset.
+    starting from the same concept dataset, created once and stored within the results_cdsg_directory/ folder.
 
     Intensity will be set to 'auto', so that the framework will manage it automatically. 
     Moreover, spatial bias is set to 0.7, that means that 70% of benign samples will be present in the stream. 
     Feel free to change these parameters as you wish, but remember to adapt also the drift_temporal_annotations accordingly.
 
     The generated datasets will be saved in the results_cdsg_directory/ folder.
-    ##############################
+    
     '''
+
     refine_cdsg_sudden = CDSG(directory_name='datasets', filename='source_dataset.csv', directory_stream='results_cdsg_directory')
     refine_cdsg_sudden.run_cdsg(
         _runcg=True,
@@ -29,6 +30,7 @@ if __name__ == "__main__":
         drift_temporal_annotations=(200_000, 120_000), ### drift starts at 120k_th sample, window size is 200k samples
         intensity='auto'
     )
+
     ##############################
     refine_cdsg_recurrent = CDSG(directory_name='datasets', filename='source_dataset.csv', directory_stream='results_cdsg_directory')
     refine_cdsg_recurrent.run_cdsg(
