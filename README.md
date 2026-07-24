@@ -1,5 +1,5 @@
 # E-REFINE
-This repository contains the official implementation of the **E-REFINE** framework, an extended version of the previous **REFINE** framework, available in the [`refine-cdsg`](https://github.com/gabrielecosta/E-REFINE/tree/refine-cdsg) branch.
+This repository contains the official implementation of the **E-REFINE** framework, an extended version of the previous **REFINE** framework, available in the [`refine-cdsg`](https://github.com/ndslab-group/REFINE-CDSG/tree/refine-cdsg) branch.
 
 ## Overview
 
