@@ -12,10 +12,11 @@ import matplotlib.pyplot as plt
 from UnionFind import UnionFind
 
 class ClassifierClusters:
-    def __init__(self, dataframe, col_data):
+    def __init__(self, dataframe, col_data, folder_save):
         self.dataframe = dataframe
         print(self.dataframe.head())
         self.col_data = col_data
+        self.folder_save = folder_save
 
     def classifiers_macro_clusters(self, dataframe):
         # per prima cosa separo i cluster benevoli da malevoli
@@ -24,14 +25,14 @@ class ClassifierClusters:
         print(f'Size benevoli: {len(pos_df)}\nSize malevoli: {len(neg_df)}')
         models = []
         param_grid = {
-        'n_estimators': [50, 75, 100],
-        'max_depth': [None, 10, 5],
+        'n_estimators': [100],
+        'max_depth': [None, 5],
         'min_samples_split': [2, 5, 10],
-        'criterion': ['gini', 'entropy', 'log_loss'],
-        'class_weight': ['balanced', 'balanced_subsample', None]
+        'criterion': ['entropy'],
+        'class_weight': ['balanced', None],
         }
         dfs = [pos_df, neg_df] # dataframe da processare
-        file_name = 'report_clusters_benevoli'
+        file_name = f'{self.folder_save}/report_clusters_benevoli'
         for df in dfs:
             X = df.iloc[:,:self.col_data].to_numpy()
             y = df.iloc[:,-1].to_numpy() # l'ultima colonna è micro clusters
@@ -39,23 +40,20 @@ class ClassifierClusters:
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=23)
             print(f'Train: X={X_train.shape}, y={y_train.shape}')
             print(f'Test: X={X_test.shape}, y={y_test.shape}')
-            # addestramernto del modello scelto
+            # training
             model_gs = self.train_classifier(X_train=X_train, y_train=y_train, param_grid=param_grid)
-            # vale solo se usiamo random forest con gridsearch, o comunque se usiamo gridsearch nella funzione train_classifier
             best_rf = model_gs.best_estimator_
             best_params = model_gs.best_params_
             models.append((best_rf, best_params))
             print("Parameters: ", best_params)
             self.test_classifier(clf=best_rf, X_test=X_test, y_test=y_test, file_name=file_name)
-            file_name = 'report_clusters_malevoli'
+            file_name = f'{self.folder_save}/report_clusters_malevoli'
         return models
 
     def train_classifier(self, X_train, y_train, param_grid):
-        # la scelta del modello potrebbe essere reimplementata dallo sviluppatore
-        print("Procedo con l'addestramento")
-        rf = RandomForestClassifier(random_state = 17)
+        rf = RandomForestClassifier(random_state = 17, n_jobs=12)
         classes = len(np.unique(y_train))
-        gridsearch = GridSearchCV(estimator=rf, param_grid=param_grid, cv=classes, n_jobs=-1, scoring='balanced_accuracy', verbose=4)
+        gridsearch = GridSearchCV(estimator=rf, param_grid=param_grid, cv=classes, n_jobs=12, scoring='balanced_accuracy', verbose=4)
         gridsearch.fit(X_train, y_train)
         return gridsearch
 
@@ -70,21 +68,17 @@ class ClassifierClusters:
 
     def predict_proba_clf(self, model, data):
         '''
-        da re-implementare nel caso in cui model non supporti predict_proba
+        to re-implement in the case of the model does not support predict_proba
         '''
         return model.predict_proba(data)
     
     def predict_clf(self, model, data):
         '''
-        da re-implementare nel caso in cui model non supporti predicts
+        to re-implement in the case the model does not support predicts
         '''
         return model.predict(data)
 
     def plot_decision_boundary(self, clf, grid_points, xx, yy):
-        '''
-        questa funzione permette di plottare i confini di decisione del nostro classificatore
-        sulla base dei punti dello spazio
-        '''
         probs = self.predict_proba_clf(model=clf, data=grid_points) # calcolo delle probabilità
         print(f'Dimensione probabilità: {probs.shape}')
         # Assegna a ciascun punto la classe con la probabilità massima

@@ -14,44 +14,42 @@ from joblib import Parallel, delayed
 
 
 class StreamerGen:
-    def __init__(self, dataframe_name, plotting, col_data):
+    def __init__(self, dataframe_name, plotting, col_data, clustering_technique, directory_stream):
         '''
-        Il dataframe che andremo a leggere dovrà essere nel formato previsto:
+        The dataframe we will be reading must be in the specified format:
         [dim1, dim2, ..., dimk, macro_cluster, micro_cluster, concept, anomaly]
-        Dove:
-        - dim1,...,dimk indicano le dimensioni effettive del dataframe di partenza
-        - macro_cluster indica l'appartenenza di un campione a campioni benevoli o malevoli
-        - micro_cluster indica l'appartenenza di un campione (benevolo o malevolo, in maniera univoca)
-            ad un micro cluster (nel caso dei malevoli possiamo pensare ad una distinzione tra DDos o Dos etc)
-        - concept indica l'appartenenza di un campione al concept o no
-        - anomaly indica quanto un campione non appartenente al concept possa essere visto come outlier rispetto al concept stesso
-        Nel caso in cui i dati siano bidimensionali allora è possibile plottare le prime due dimensioni.
-        Eventualmente disabilitare plotting o prevedere un metodo interno che faccia copia delle utils ma riduca la dimensionalità
+        Where:
+        - dim1,...,dimk indicate the actual dimensions of the source dataframe
+        - macro_cluster indicates whether a sample belongs to benign or malicious samples
+        - micro_cluster indicates to which micro cluster a sample (benign or malicious, unambiguously)
+            to a micro-cluster (in the case of malicious samples, we can consider a distinction between DDoS or DoS, etc.)
+        - concept indicates whether a sample belongs to the concept or not
+        - anomaly indicates the extent to which a sample not belonging to the concept can be viewed as an outlier relative to the concept itself
+        If the data is two-dimensional, then it is possible to plot the first two dimensions.
+        If necessary, disable plotting or provide an internal method that copies the utilities but reduces the dimensionality
 
-        Questo dataset si trova all'interno della cartella creata dal generatore che contiene il concept_df.csv
+        This dataset is located within the folder created by the generator that contains the concept_df.csv file
         '''
         self.df = pd.read_csv(os.path.join(os.getcwd(), dataframe_name))
         self.plotting = plotting
         self.col_data = col_data
         self.first_k_columns = None
+        self.clustering_technique = clustering_technique
+        self.directory_stream = directory_stream
 
     def getdataframe(self):
         return self.df.copy(deep=True)
     
     def save_stream(self, window_stream_df, filename):
-        data_path = os.getcwd()
-        data_path = Path(data_path)
-        cartella = data_path / f"results_cdsg_directory"
-        cartella.mkdir(parents=True, exist_ok=True)
-        file_path = cartella / filename
+        data_path = Path(f'{self.directory_stream}/{self.clustering_technique}')
+        data_path.mkdir(parents=True, exist_ok=True)
+        file_path = data_path / filename
         window_stream_df.to_csv(file_path, index=False)
 
     def save_params(self, perc_malignant_concept, perc_malignant_drift, intensity_ben, intensity_mal, win_size, start_drift, perc_drift_reached, nome_file):
-        data_path = os.getcwd()
-        data_path = Path(data_path)
-        cartella = data_path / f"results_cdsg_directory"
-        cartella.mkdir(parents=True, exist_ok=True)
-        file_path = cartella / f'{nome_file}.txt'
+        data_path = Path(f'{self.directory_stream}/{self.clustering_technique}')
+        data_path.mkdir(parents=True, exist_ok=True)
+        file_path = data_path / f'{nome_file}.txt'
         with open(file=file_path, mode='w') as f:
             print(f'Percentuale campioni maligni concetto richiesta: {perc_malignant_concept}', file=f)
             print(f'Percentuale campioni maligni drift richiesta: {perc_malignant_drift}', file=f)
@@ -62,11 +60,11 @@ class StreamerGen:
 
     def plot_with_anomaly_slider(self, df):
         '''
-        Dato un dataframe bidimensionale questa funzione permette di plottare i campioni anomali sulla base di uno
-        slider che varia i valori di soglia in maniera dinamica.
+        Given a two-dimensional dataframe, this function allows you to plot outliers based on a
+        slider that dynamically adjusts the threshold values.
         '''
         fig, ax = plt.subplots(figsize=(12, 8))
-        plt.subplots_adjust(left=0.1, bottom=0.25)  # Spazio per lo slider
+        plt.subplots_adjust(left=0.1, bottom=0.25)  
 
         sc = ax.scatter(df['DIM1'], df['DIM2'], c=df['anomaly'], cmap="viridis", s=50, edgecolor="k", alpha=0.7)
         colorbar = plt.colorbar(sc, ax=ax)
@@ -81,17 +79,15 @@ class StreamerGen:
         ax_slider = plt.axes([0.2, 0.1, 0.6, 0.03], facecolor="lightgoldenrodyellow")
         slider = Slider(ax_slider, 'Anomaly Threshold', 0.0, 2.0, valinit=0.0)
 
-        # Funzione di aggiornamento per il filtro
         def update(val):
             threshold = slider.val
-            # Filtra i dati in base alla soglia dell'anomaly
+    
             mask = df['anomaly'] >= threshold
             filtered_x = df['DIM1'].where(mask, np.nan)
             filtered_y = df['DIM2'].where(mask, np.nan)
             
-            # Aggiorna il grafico
             sc.set_offsets(np.c_[filtered_x, filtered_y])
-            sc.set_array(df['anomaly'])  # manteniamo l'array intero per il color mapping
+            sc.set_array(df['anomaly'])  
             fig.canvas.draw_idle()
 
         slider.on_changed(update)
@@ -100,7 +96,7 @@ class StreamerGen:
 
     def plot_sliding_windows(self, window_df, start_win, end_win):
         fig, ax = plt.subplots(figsize=(12, 8))
-        plt.subplots_adjust(left=0.1, bottom=0.25)  # Spazio per lo slider
+        plt.subplots_adjust(left=0.1, bottom=0.25)  
 
         sc = ax.scatter([], [], c=[], cmap="viridis", s=50, edgecolor="k", alpha=0.7)
         colorbar = plt.colorbar(sc, ax=ax)
@@ -112,25 +108,22 @@ class StreamerGen:
         ax.set_xlim(self.x_min, self.x_max)
         ax.set_ylim(self.y_min, self.y_max)
 
-        # Crea l'asse per lo slider
         ax_slider = plt.axes([0.2, 0.1, 0.6, 0.03], facecolor="lightgoldenrodyellow")
         slider = Slider(ax_slider, 'Anomaly Threshold', start_win, end_win, valinit=start_win)
         last_point = ax.scatter([], [], color="red", s=150, edgecolor="darkred", label="Ultimo Campione", zorder=5)
 
-        # Funzione di aggiornamento per il filtro
         def update(val):
             threshold = slider.val
-            # Filtra i dati in base alla soglia dell'anomaly
+        
             mask = window_df['WIN'] < threshold
             filtered_x = window_df['DIM1'].where(mask, np.nan)
             filtered_y = window_df['DIM2'].where(mask, np.nan)
 
-            # Aggiorna il grafico
             sc.set_offsets(np.c_[filtered_x, filtered_y])
-            sc.set_array(window_df['concept'])  # manteniamo l'array intero per il color mapping
+            sc.set_array(window_df['concept'])  
 
             last_point_ = window_df[window_df['WIN'] == round(threshold)]
-            # Solo se esiste un valore valido, aggiorna il punto rosso
+            
             if not last_point_.empty:
                 last_point.set_offsets(np.c_[last_point_['DIM1'], last_point_['DIM2']])
             fig.canvas.draw_idle()
@@ -141,21 +134,21 @@ class StreamerGen:
     
     def extract_drift_samples(self, drift_df, intensity_ben, intensity_mal, drift_win):
         '''
-        Descrizione:
-        Questa funzione permette di estrarre, sulla base di un dataframe di drift, campioni
-        di una determinata intensità al fine di soddisfare una percentuale di campioni richiesta e di un drift_win
-        Input:
-        - drift df
-        - intensità benevoli (in termini di outlier score)
-        - intensità malevoli (in termini di outlier score)
-        - drift_win: numero di campioni richiesti nella finestra
+        Description:
+            This function allows you to extract, based on a drift dataframe, samples
+            of a specific intensity in order to meet a required percentage of samples and a drift_win
+            Input:
+            - drift df
+            - benign intensity (in terms of outlier score)
+            - malicious intensity (in terms of outlier score)
+            - drift_win: number of samples required in the window
         Output:
-        - restituisce le soglie da considerare per i campioni di drift per benevoli (indice 0) e benevoli (indice 1)
+            - returns the thresholds to be considered for drift samples for benign (index 0) and benign (index 1)
         '''
         intensity_ben = intensity_ben * 2
         intensity_mal = intensity_mal * 2
         intensities = [intensity_ben, intensity_mal]
-        drift_samples_ = [] # raccoglie i campioni per il drift per benigni e malevoli
+        drift_samples_ = [] 
         values_ = [drift_df.loc[drift_df['macro_clusters'] == 0, 'anomaly'].value_counts(), 
                    drift_df.loc[drift_df['macro_clusters'] == 1, 'anomaly'].value_counts()]
         thresholds_ = [drift_df.loc[drift_df['macro_clusters'] == 0, 'anomaly'].unique(),
@@ -163,7 +156,7 @@ class StreamerGen:
         for i in range(len(values_)):
             samples_ = []
             intensity = intensities[i]
-            # aggiunge prima i campioni benevoli, poi quelli malevoli
+            
             sum_ = 0.0
             thresholds = thresholds_[i]
             values = values_[i]
@@ -180,14 +173,14 @@ class StreamerGen:
 
     def check_proportion(self, dataframe, perc):
         '''
-        Descrizione: 
-        Questa funzione permette di controllare se un dataframe rispetta la percentale richiesta
-        di campioni benevoli e malevoli.
+        Description:
+        This function allows you to check whether a dataframe meets the required percentage
+        of benign and malicious samples.
         Input:
         - dataframe
-        - percentuale malevoli
+        - percentage of malicious samples
         Output:
-        - flag: true se rispetta la percentuale di almeno quel X%, false altrimenti (quindi lancia un errore)
+        - flag: true if it meets the requirement of at least X%, false otherwise (and thus raises an error)
         '''
         tot = len(dataframe)
         tot_mal = len(dataframe[dataframe['macro_clusters'] == 1])
@@ -196,7 +189,6 @@ class StreamerGen:
         if (tot_mal / tot) >= perc:
             flag = True
         else:
-            # bisogna abbassare la percentuale come suggerimento.
             while perc >= 0.05:
                 perc -= 0.05
                 if (tot_mal / tot) >= perc:
@@ -205,13 +197,13 @@ class StreamerGen:
     
     def check_drift_samples(self, drift_ben_samples, drift_mal_samples, perc_malignant_drift, drift_win):
         '''
-        Questa funzione permette di verificare se:
-        - ci siano abbastanza campioni per fare il drift (restituisce una flag in prima posizione)
-        - venga controllato il rapporto di campioni maligni affinché corrisponda alla percentuale richiesta
-            come parametro (deve essere almeno >= a quella richiesta)
-        Restituisce:
-        - prima flag che ci indica che abbiamo ancora pochi campioni, quindi dobbiamo diminuire la intensità dei benevoli
-        - seconda flag che ci indica che non abbiamo la proporzione rispettata, quindi dobbiamo diminuire l'intensità dei malevoli
+       This function allows you to verify whether:
+        - there are enough samples to perform the drift (returns a flag in the first position)
+        - the ratio of malignant samples is checked to ensure it matches the required percentage
+            as a parameter (it must be at least >= the required value)
+        Returns:
+        - a first flag indicating that we still have too few samples, so we must decrease the intensity of the benign samples
+        - a second flag indicating that the required proportion is not met, so we must decrease the intensity of the malignant samples
         '''
         ben_drift_samples = sum(item[1] for item in drift_ben_samples)
         mal_drift_samples = sum(item[1] for item in drift_mal_samples)
@@ -226,11 +218,6 @@ class StreamerGen:
 
     
     def extract_sample(self, df_mal, df_ben, malignant_proba, perc_malignant):
-        """
-        Estrae un campione senza alterare il DataFrame originale.
-        Attenzione: in questo modo il campione non verrà rimosso dal dataset e potrebbe avere equiprobabilità di essere ripescato
-        """
-        already_taken = True
         if malignant_proba < perc_malignant:
             # estrai un campione malevolo se la probabilità è bassa
             if not df_mal.empty:
@@ -247,26 +234,19 @@ class StreamerGen:
 
 
     def generate_samples(self, concept_df, drift_df, win_size, start_drift, perc_malignant_concept, perc_malignant_drift, recurrent=False, rec_drift=0):
-        """
-        Genera campioni ottimizzati con parallelizzazione ed estrazione batch.
-        """
-        # Pre-filtriamo i macro_clusters UNA SOLA VOLTA
         concept_mal = concept_df[concept_df['macro_clusters'] == 1].copy()
         concept_ben = concept_df[concept_df['macro_clusters'] == 0].copy()
         drift_mal = drift_df[drift_df['macro_clusters'] == 1].copy()
         drift_ben = drift_df[drift_df['macro_clusters'] == 0].copy()
 
-        # Determiniamo in anticipo dove avviene il drift
         drift_mask = np.zeros(win_size, dtype=bool)
         if start_drift < win_size:
             drift_mask[start_drift:] = True
         if recurrent and rec_drift < win_size:
             drift_mask[rec_drift:] = ~drift_mask[rec_drift:]  # XOR per il drift ricorrente
 
-        # Generiamo in batch le probabilità di malignità
         malign_probs = np.random.rand(win_size)
 
-        # Fuori da process_sample:
         columns_to_select = list(concept_df.columns[:self.col_data]) + ['macro_clusters', 'concept']
 
         results = []
@@ -279,33 +259,31 @@ class StreamerGen:
             if use_concept:
                 sample = self.extract_sample(concept_mal, concept_ben, malign_probs[i], perc_malignant_concept)
                 if malign_probs[i] < perc_malignant_concept:
-                    concept_mal = concept_mal.loc[~concept_mal.index.isin(used_indices_concept_mal)]
                     used_indices_concept_mal.update(sample.index)
+                    concept_mal = concept_mal.loc[~concept_mal.index.isin(used_indices_concept_mal)]
                 else:
-                    concept_ben = concept_ben.loc[~concept_ben.index.isin(used_indices_concept_ben)]
                     used_indices_concept_ben.update(sample.index)
+                    concept_ben = concept_ben.loc[~concept_ben.index.isin(used_indices_concept_ben)]   
             else:
                 sample = self.extract_sample(drift_mal, drift_ben, malign_probs[i], perc_malignant_drift)
                 if malign_probs[i] < perc_malignant_drift:
-                    drift_mal = drift_mal.loc[~drift_mal.index.isin(used_indices_drift_mal)]
                     used_indices_drift_mal.update(sample.index)
+                    drift_mal = drift_mal.loc[~drift_mal.index.isin(used_indices_drift_mal)]             
                 else:
-                    drift_ben = drift_ben.loc[~drift_ben.index.isin(used_indices_drift_ben)]
                     used_indices_drift_ben.update(sample.index)
+                    drift_ben = drift_ben.loc[~drift_ben.index.isin(used_indices_drift_ben)]       
             sample_numeric = sample[columns_to_select].values.ravel()
             results.append(np.append(sample_numeric, i).tolist())
         
         window_formatted = results
-        # Definiamo le colonne finali, includendo 'macro_clusters', 'concept', e 'WIN'
 
+        # Definiamo le colonne finali, includendo 'macro_clusters', 'concept', e 'WIN'
         self.first_k_columns = concept_df.columns[:self.col_data].tolist()
         new_columns = self.first_k_columns + ['macro_clusters', 'concept', 'WIN']
         
-        # Restituisci la finestra formattata e le nuove colonne
         return window_formatted, new_columns
     
     def reduce_dataset_proportion(self, dataframe, perc):
-        # campioni negativi in percentuale:
         perc_neg = perc * 100
         perc_pos = 100 - perc_neg
         tot = len(dataframe)
@@ -313,16 +291,13 @@ class StreamerGen:
         tot_pos = len(dataframe[dataframe['macro_clusters'] == 0])
         num_pos_to_sample = int((tot_mal * perc_pos ) / perc_neg)
 
-        # Adatta il numero di positivi in base ai dati disponibili
         num_pos_to_sample = min(num_pos_to_sample, tot_pos)
         print(f"Campioni negativi disponibili: {tot_mal}, Campioni positivi disponibili: {tot_pos}")
         print(f"Campioni positivi selezionati: {num_pos_to_sample}, Campioni negativi selezionati: {tot_mal}")
         
-        # Campiona i dati senza sostituzione
         sampled_neg = dataframe[dataframe['macro_clusters'] == 1].sample(n=tot_mal, replace=False)
         sampled_pos = dataframe[dataframe['macro_clusters'] == 0].sample(n=num_pos_to_sample, replace=False)
         
-        # Unisci i due dataset campionati
         sampled_df = pd.concat([sampled_neg, sampled_pos])
         print(f"Dataset ridotto con {len(sampled_df)} campioni")
         return sampled_df
@@ -330,35 +305,35 @@ class StreamerGen:
     
     def recurrent_drift_generator(self, win_size, start_drift, rec_drift, perc_malignant_concept, perc_malignant_drift, nome_file_parametri, save_stream=False, plot_window=False, filename='streaming.csv', intensity_mode='auto'):
         '''
-        Descrizione:
-            Questa funzione permette di generare un sudden drift recurrrent (del tipo A-B-A) a partire da un dataframe passato in input
-            al generatore, atteso nel formato [dim1, dim2, ..., dimk, macro_clusters, micro_clusters, concept, anomaly].
-            I campioni del concept verranno presi dal dataframe dove la label concept=1. I campioni del drift verranno presi dal dataframe
-            risultante, sulla base di una percentuale di campioni malevoli da rispettare: se l'utente mi chiede di generare una finestra
-            di drift da X campioni con percentuale dei campioni malevoli del x.x% rispetto al totale (in termini statistici),
-            il generatore procederà a selezionare campioni di drift a partire da una soglia di intesità pari a 1.0, andando a diminuire
-            incrementalmente per poter soddisfare la percentuale di ripartizione statistica richiesta (sia per benevoli che per malevoli)
-            La generazione dello stream prevede poi estrazione randomica senza reinserimento dei campioni a partire dai due dataframe.
+        Description:
+            This function allows you to generate a recurrent sudden drift (of the A-B-A type) from a dataframe passed as input
+            to the generator, which must be in the format [dim1, dim2, ..., dimk, macro_clusters, micro_clusters, concept, anomaly].
+            Concept samples will be taken from the dataframe where the label is concept=1. Drift samples will be taken from the
+            resulting dataframe, based on a specified percentage of malicious samples: if the user asks me to generate a drift window
+            drift window of X samples with a percentage of malicious samples of x.x% relative to the total (in statistical terms),
+            the generator will select drift samples starting from an intensity threshold of 1.0, decreasing
+            incrementally to satisfy the required statistical distribution percentage (for both benign and malicious samples)
+            Stream generation then involves random sampling without replacement from the two dataframes.
         Input:
-            - win_size: dimensione della finestra dove far avvenire il drift
-            - start_drift: quando far iniziare il drift
-            - rec_drift: quando tornarre al concept
-            - perc_malignant_concept: percentuale di campioni malevoli da rispettare nel concept in termini statistici. Serve anche
-                come vincolo da rispettare in fase di creazione del concept_df; se non viene rispettata la partizione viene lanciato un
-                errore con un suggerimento utile per poter scegliere successivamente il valore corretto; la stessa percentuale viene poi usata
-                come probabilità di estrazione in fase di generazione.
-            - perc_drift_concept: come prima, percentuale di campioni malevoli da rispettare nel drift in termini statistici. Serve
-                anche come vincolo da rispettare in fase di creazione del drift_df; se non viene rispettata la proporzione, allora si procede con una
-                ridimensione dei valori di intensità. Il modello cercherà di estrarre i valori di intensità corretti tramite una strategia Greedy
-                da applicare al mio dataframe per estrarre il giusto numero di campioni malevoli e benevoli sulla base di percentuali di campioni e dimensione
-                della finestra, Cercherà di dare il massimo nel senso che partità da valori di intensità elevati
-            Output:
-            - file riepilogativo dei campioni estratti, la finestra e l'intensità raggiunta
-            - campioni estratti volta dopo volta
-            - dataframe dei campioni estratti volta dopo volta
+            - win_size: size of the window in which the drift occurs
+            - start_drift: when to start the drift
+            - rec_drift: when to return to the concept
+            - perc_malignant_concept: percentage of malicious samples to be maintained in the concept in statistical terms. It also serves
+                as a constraint to be met during the creation of the concept_df; if this constraint is not met, an
+                error is thrown with a helpful suggestion for selecting the correct value later; the same percentage is then used
+                as the sampling probability during the generation phase.
+            - perc_drift_concept: As before, the percentage of malicious samples to be maintained in the drift in statistical terms. It also serves
+                as a constraint to be met during the creation of the drift_df; if the proportion is not met, the intensity values are
+                resized. The model will attempt to extract the correct intensity values using a greedy strategy
+                applied to my dataframe to extract the right number of malicious and benign samples based on sample percentages and window size
+                . It will aim to maximize the results by starting with high intensity values
+        Output:
+            - a summary file of the extracted samples, the window, and the intensity achieved
+            - samples extracted in each run
+            - a dataframe of the samples extracted in each run
         =============================
-        al momento l'intensità viene gestita in maniera automatica, per poterla impostare manualmente bisogna passare una tupla
-        del tipo (intensità_benevoli, intensità_malevoli) come parametro intensity_mode
+        Currently, the intensity is managed automatically. To set it manually, you must pass a tuple
+        of the form (benign_intensity, malignant_intensity) as the intensity_mode parameter
         =============================
         '''
         drift_win = win_size - rec_drift + start_drift
@@ -382,8 +357,6 @@ class StreamerGen:
         if len(drift_df) < drift_win:
             raise ValueError('Attenzione! Dimensione drift insufficiente per coprire la finestra richiesta')
         
-        # il valore di intensità in questo caso viene impostato in maniera automatico, altrimenti andrebbe 
-        # specificato qui sotto e commentare il restante pezzo di codice
         intensity_ben = 1.0
         intensity_mal = 1.0
         decrease_intensity = True
@@ -417,10 +390,7 @@ class StreamerGen:
             thresholds_ = [item[0] for item in drift_samples[i]]
             for threshold in thresholds_:
                 drift_df.loc[(drift_df['macro_clusters'] == i) & (drift_df['anomaly'] == threshold), 'in_win'] = 1
-       
-        # print(f'Intensità benevoli: {intensity_ben}\nIntesità malevoli: {intensity_mal}') 
         
-        # generazione della finestra
         samples_win, new_cols = self.generate_samples(concept_df=concept_df, drift_df=drift_df[drift_df['in_win'] == 1], win_size=win_size, start_drift=start_drift, perc_malignant_concept=perc_malignant_concept, perc_malignant_drift=perc_malignant_drift, recurrent=True, rec_drift=rec_drift)
         win_df = pd.DataFrame(samples_win, columns=new_cols)
         perc_mal_reached_concept = len(win_df[(win_df['macro_clusters'] == 1) & (win_df['concept'] == 1)]) / len(win_df[win_df['concept'] == 1])
@@ -439,7 +409,8 @@ class StreamerGen:
                 intensity_mal=intensity_mal,
                 win_size=win_size,
                 start_drift=start_drift,
-                perc_drift_reached=perc_mal_reached
+                perc_drift_reached=perc_mal_reached,
+                nome_file=nome_file_parametri
                 )
 
         return samples_win
@@ -447,34 +418,34 @@ class StreamerGen:
     
     def sudden_drift_generator(self, win_size, start_drift, perc_malignant_concept, perc_malignant_drift, nome_file_parametri, save_stream=False, plot_window=False, filename='streaming.csv', intensity_mode='auto'):
         '''
-        Descrizione:
-        Questa funzione permette di generare un sudden drift a partire da un dataframe passato in input
-        al generatore, atteso nel formato [dim1, dim2, ..., dimk, macro_clusters, micro_clusters, concept, anomaly].
-        I campioni del concept verranno presi dal dataframe dove la label concept=1. I campioni del drift verranno presi dal dataframe
-        risultante, sulla base di una percentuale di campioni malevoli da rispettare: se l'utente mi chiede di generare una finestra
-        di drift da X campioni con percentuale dei campioni malevoli del x.x% rispetto al totale (in termini statistici),
-        il generatore procederà a selezionare campioni di drift a partire da una soglia di intesità pari a 1.0, andando a diminuire
-        incrementalmente per poter soddisfare la percentuale di ripartizione statistica richiesta (sia per benevoli che per malevoli)
-        La generazione dello stream prevede poi estrazione randomica senza reinserimento dei campioni a partire dai due dataframe.
+        Description:
+        This function allows you to generate a sudden drift based on a dataframe passed as input
+        to the generator, which must be in the format [dim1, dim2, ..., dimk, macro_clusters, micro_clusters, concept, anomaly].
+        The concept samples will be taken from the dataframe where the label is concept=1. The drift samples will be taken from the
+        resulting dataframe, based on a specified percentage of malicious samples: if the user asks me to generate a drift window
+        drift window of X samples with a percentage of malicious samples of x.x% relative to the total (in statistical terms),
+        the generator will select drift samples starting from an intensity threshold of 1.0, decreasing
+        incrementally to satisfy the required statistical distribution percentage (for both benign and malicious samples)
+        Stream generation then involves random sampling without replacement from the two dataframes.
         Input:
-        - win_size: dimensione della finestra dove far avvenire il drift
-        - start_drift: quando far iniziare il drift
-        - perc_malignant_concept: percentuale di campioni malevoli da rispettare nel concept in termini statistici. Serve anche
-            come vincolo da rispettare in fase di creazione del concept_df; se non viene rispettata la partizione viene lanciato un
-            errore con un suggerimento utile per poter scegliere successivamente il valore corretto; la stessa percentuale viene poi usata
-            come probabilità di estrazione in fase di generazione.
-        - perc_drift_concept: come prima, percentuale di campioni malevoli da rispettare nel drift in termini statistici. Serve
-            anche come vincolo da rispettare in fase di creazione del drift_df; se non viene rispettata la proporzione, allora si procede con una
-            ridimensione dei valori di intensità. Il modello cercherà di estrarre i valori di intensità corretti tramite una strategia Greedy
-            da applicare al mio dataframe per estrarre il giusto numero di campioni malevoli e benevoli sulla base di percentuali di campioni e dimensione
-            della finestra, Cercherà di dare il massimo nel senso che partità da valori di intensità elevati
+        - win_size: size of the window in which the drift is to occur
+        - start_drift: when to start the drift
+        - perc_malignant_concept: percentage of malicious samples to be maintained in the concept in statistical terms. It also serves
+            as a constraint to be met during the creation of the concept_df; if this constraint is not met, an
+            error is thrown with a helpful suggestion for selecting the correct value later; the same percentage is then used
+            as the sampling probability during generation.
+        - perc_drift_concept: As before, the percentage of malicious samples to be maintained in the drift in statistical terms. It also serves
+            as a constraint to be met during the creation of the drift_df; if the proportion is not met, the intensity values are
+            resized. The model will attempt to extract the correct intensity values using a greedy strategy
+            applied to my dataframe to extract the right number of malicious and benign samples based on sample percentages and window size
+            . It will aim to maximize the results by starting with high intensity values
         Output:
-        - file riepilogativo dei campioni estratti, la finestra e l'intensità raggiunta
-        - campioni estratti volta dopo volta
-        - dataframe dei campioni estratti volta dopo volta
+        - a summary file of the extracted samples, the window, and the intensity achieved
+        - samples extracted in each run
+        - a dataframe of the samples extracted in each run
         =============================
-        al momento l'intensità viene gestita in maniera automatica, per poterla impostare manualmente bisogna passare una tupla
-        del tipo (intensità_benevoli, intensità_malevoli) come parametro intensity_mode
+        Currently, the intensity is managed automatically. To set it manually, you must pass a tuple
+        of the form (benign_intensity, malignant_intensity) as the intensity_mode parameter
         =============================
         '''
         if win_size < start_drift:
@@ -547,3 +518,340 @@ class StreamerGen:
                 )
 
         return samples_win
+    
+    def simulate_n_samples(self, width_drift, perc_drift, slope):
+        '''
+        A utility function that allows you to calculate, based on the generated random distribution of samples, how many samples of the concept and how many of the drift to consider
+        - count_a: samples of the concept
+        - count_b: samples of the drift
+        '''
+        count_a = 0
+        count_b = 0
+        for i in range(width_drift):
+            perc_a = 1 - (i / width_drift) * slope
+            if perc_a < 0.0:
+                # If the slope is too steep, I might end up with negative values; in that case, I'll treat 0.0 as the percentage of samples for that concept
+                perc_a = 0.0
+            if perc_drift[i] < perc_a:
+                count_a += 1
+            else:
+                count_b += 1
+        return count_a, count_b
+    
+    def gradual_drift_generator(self, win_size, start_drift, width_drift, slope, perc_malignant_concept, perc_malignant_drift, save_stream=False, filename='streaming.csv', nome_file_parametri='params_gradual', intensity_mode='auto'):
+        '''
+        Description:
+        This function allows you to generate a gradual drift from a dataframe passed as input
+        to the generator, which must be in the format [dim1, dim2, ..., dimk, macro_clusters, micro_clusters, concept, anomaly].
+        Samples for the concept will be taken from the dataframe where the label is concept=1.
+            Win_size: total size of the dataset
+            Start_drift: starting position of the drift
+            Width_drift: width of the drift
+            Slope: slope of the drift, i.e., how much the distribution must change over its duration
+            Perc_malignant_concept: percentage of malignant samples in the concept
+            Perc_malignant_drift: percentage of malignant samples in the drift
+            Save_stream: flag to save the generated stream
+            Filename: name of the output file
+            Parameter_file_name: name of the file to save the parameters
+            Intensity_mode: intensity setting mode
+        '''
+        proba_gradual = np.random.rand(width_drift)
+        
+        gradual_concept, gradual_drift = self.simulate_n_samples(width_drift=width_drift, perc_drift=proba_gradual, slope=slope)
+
+        ###  First, I make sure to adjust the dataset to the required proportion of malicious samples; otherwise, I risk not having enough samples to generate the drift
+        concept_df = self.df[self.df['concept'] == 1].copy(deep=True)
+        concept_df = self.reduce_dataset_proportion(dataframe=concept_df, perc=perc_malignant_concept)
+        print(f'Concept df size: {len(concept_df)}')
+        
+        if len(concept_df) < (start_drift + gradual_concept):
+            raise ValueError('Attenzione! Dimensione concetto insufficiente per coprire la finestra richiesta')
+        
+        drift_df = self.df[self.df['concept'] == 0].copy(deep=True)
+        print(f'Drift size: {len(drift_df)}')
+        
+        if len(drift_df) < (win_size - (start_drift + width_drift) + gradual_drift):
+            raise ValueError('Attenzione! Dimensione drift insufficiente per coprire la finestra richiesta')
+        
+        intensity_ben = 1.0
+        intensity_mal = 1.0
+        decrease_intensity = True
+        
+        ### This is the window that can be reached, since I'm going to add the gradual portion to the small portion of actual drift
+        drift_win = win_size - (start_drift + width_drift) + gradual_drift
+        
+        if intensity_mode == 'auto':
+            while decrease_intensity:
+                print(f'Intensità benevoli: {intensity_ben}\nIntesità malevoli: {intensity_mal}') 
+                drift_samples = self.extract_drift_samples(drift_df=drift_df, intensity_ben=intensity_ben, intensity_mal=intensity_mal, drift_win=drift_win)
+                flag1_, flag2_ = self.check_drift_samples(drift_ben_samples=drift_samples[0], drift_mal_samples=drift_samples[1], perc_malignant_drift=perc_malignant_drift, drift_win=drift_win)
+                if flag1_:
+                    print(f'Warning! Campioni insufficienti per realizzare il drift. Diminuisco intensità benevoli')
+                    intensity_ben -= 0.05
+                    if intensity_ben <= 0.0:
+                        intensity_ben = 0.0
+                        flag1_ = False
+                    decrease_intensity = True
+                if flag2_:
+                    print("Warning! Percentuale campioni malevoli non rispettata nel drift, diminuisco l'intensità dei malevoli")
+                    intensity_mal -= 0.05
+                    if intensity_mal <= 0.0:
+                        raise ValueError("Errore....intensità negativa nei malevoli, numero di campioni insufficiente!....")
+                    decrease_intensity = True
+                if not (flag1_ or flag2_):
+                    decrease_intensity = False
+        else: 
+            intensity_ben, intensity_mal = intensity_mode
+            
+        drift_df['in_win'] = 0
+        for i in range(len(drift_samples)):
+            thresholds_ = [item[0] for item in drift_samples[i]]
+            for threshold in thresholds_:
+                drift_df.loc[(drift_df['macro_clusters'] == i) & (drift_df['anomaly'] == threshold), 'in_win'] = 1
+            
+        # print("For debugging only")
+        # print(f'Intensità benevoli: {intensity_ben}\nIntesità malevoli: {intensity_mal}')
+        # print(f'Gradual concept samples: {gradual_concept}, gradual drift samples: {gradual_drift}')
+        
+        samples_win, new_cols = self.generate_samples_gradual(concept_df=concept_df, drift_df=drift_df[drift_df['in_win'] == 1], win_size=win_size, start_drift=start_drift, width_drift=width_drift, perc_malignant_concept=perc_malignant_concept, perc_malignant_drift=perc_malignant_drift, proba_gradual=proba_gradual, slope=slope)
+        win_df = pd.DataFrame(samples_win, columns=new_cols)
+        perc_mal_reached_concept = len(win_df[(win_df['macro_clusters'] == 1) & (win_df['concept'] == 1)]) / len(win_df[win_df['concept'] == 1])
+        perc_mal_reached_drift = len(win_df[(win_df['macro_clusters'] == 1) & (win_df['concept'] == 0)]) / len(win_df[win_df['concept'] == 0])
+        perc_mal_reached = [perc_mal_reached_concept, perc_mal_reached_drift]
+        
+        if save_stream:
+            self.save_stream(win_df, filename)
+            self.save_params(
+                perc_malignant_concept=perc_malignant_concept, 
+                perc_malignant_drift=perc_malignant_drift, 
+                intensity_ben=intensity_ben, 
+                intensity_mal=intensity_mal,
+                win_size=win_size,
+                start_drift=start_drift,
+                perc_drift_reached=perc_mal_reached,
+                nome_file=nome_file_parametri
+                )
+
+        return samples_win
+    
+    def generate_samples_gradual(self, concept_df, drift_df, win_size, start_drift, width_drift, perc_malignant_concept, perc_malignant_drift, proba_gradual, slope):
+        """
+        Generates optimized samples using parallelization and batch extraction for gradual drift.
+        - Start drift indicate the sample index where the gradual must start
+        - Width determine for how long drift must gradually shift
+        - Slope determine the rapidity of shifting
+        """
+        print(f'campioni nel concetto: {len(concept_df)}, campioni nel drift: {len(drift_df)}')
+        
+        concept_mal = concept_df[concept_df['macro_clusters'] == 1].copy()
+        concept_ben = concept_df[concept_df['macro_clusters'] == 0].copy()
+        drift_mal = drift_df[drift_df['macro_clusters'] == 1].copy()
+        drift_ben = drift_df[drift_df['macro_clusters'] == 0].copy()
+        
+        print(f'campioni maligni nel concetto: {len(concept_mal)}, campioni benevoli nel concetto: {len(concept_ben)}')
+        print(f'campioni maligni nel drift: {len(drift_mal)}, campioni benevoli nel drift: {len(drift_ben)}')
+        
+        # We determine in advance where the drift occurs, and then mask the samples that should be extracted from the concept and those that should be extracted from the drift based on the generated random distribution and the chosen slope
+        drift_mask = np.zeros(win_size, dtype=bool)
+        for i in range(width_drift):
+            gradual_perc = 1 - (i / width_drift) * slope
+            if proba_gradual[i] < gradual_perc:
+                drift_mask[start_drift + i] = False
+            else:
+                drift_mask[start_drift + i] = True
+       
+        drift_mask[start_drift + width_drift:] = True
+    
+        malign_probs = np.random.rand(win_size)
+
+        columns_to_select = list(concept_df.columns[:self.col_data]) + ['macro_clusters', 'concept']
+
+        results = []
+        used_indices_concept_mal = set()
+        used_indices_concept_ben = set()
+        used_indices_drift_mal = set()
+        used_indices_drift_ben = set()
+        for i in tqdm(range(win_size), desc="Elaborazione campioni"):
+            use_concept = not drift_mask[i]
+            if use_concept:
+                sample = self.extract_sample(concept_mal, concept_ben, malign_probs[i], perc_malignant_concept)
+                if malign_probs[i] < perc_malignant_concept:
+                    used_indices_concept_mal.update(sample.index)
+                    concept_mal = concept_mal.loc[~concept_mal.index.isin(used_indices_concept_mal)]             
+                else:
+                    used_indices_concept_ben.update(sample.index)
+                    concept_ben = concept_ben.loc[~concept_ben.index.isin(used_indices_concept_ben)]                 
+            else:
+                sample = self.extract_sample(drift_mal, drift_ben, malign_probs[i], perc_malignant_drift)
+                if malign_probs[i] < perc_malignant_drift:
+                    used_indices_drift_mal.update(sample.index)
+                    drift_mal = drift_mal.loc[~drift_mal.index.isin(used_indices_drift_mal)]             
+                else:
+                    used_indices_drift_ben.update(sample.index)
+                    drift_ben = drift_ben.loc[~drift_ben.index.isin(used_indices_drift_ben)]      
+            sample_numeric = sample[columns_to_select].values.ravel()
+            results.append(np.append(sample_numeric, i).tolist())
+            
+        window_formatted = results
+        self.first_k_columns = concept_df.columns[:self.col_data].tolist()
+        new_columns = self.first_k_columns + ['macro_clusters', 'concept', 'WIN']
+        return window_formatted, new_columns
+    
+    def load_df_incremental(self, filename):
+        data_path = Path(f'{self.directory_stream}/{self.clustering_technique}')
+        file_path = data_path / filename
+        df = pd.read_csv(file_path)
+        return df
+    
+    def incremental_drift_generator(self, win_size, list_starts, concept_df_incremental_filename, spatial_biases,
+                                    nome_file_parametri='params_incremental', save_stream=False, filename='streaming_incremental.csv', intensity_mode='auto'):
+        '''
+        Description:
+            Generates an incremental drift with N concepts (A, B, C, ...) that alternate
+            in sequence according to a start list.
+            Each concept has its own spatial bias, that is, the proportion of
+            malicious/benign samples to be maintained during its active period.
+            Transitions between adjacent concepts constitute drift windows,
+            which are handled using the same intensity logic as sudden/recurrent drift.
+
+        Input:
+            - win_size: total window size
+            - list_starts: list of N start points [s_A, s_B, s_C, ...], one for each concept.
+                           Concept i is active in the interval [list_starts[i], list_starts[i+1]).
+                           The last concept is active up to win_size. Ideally, s_A starts at 0.
+            - spatial_biases: a list of N floats in [0,1], one for each concept,
+                              indicating the desired percentage of malicious samples
+                              for that concept during its active period.
+            - concept_df_incremental_filename: name of the dataframe with a ‘concept’ column in {A, B, C, ...}
+                                      generated by incremental_generator
+            - intensity_mode: ‘auto’ or a tuple (intensity_ben, intensity_mal) applied
+                              to all drift transitions
+
+        Output:
+            - results: list of generated samples
+            - saves the stream and parameters if save_stream=True
+        '''
+        n_concepts = len(list_starts)
+        concept_df_incremental = self.load_df_incremental(filename=concept_df_incremental_filename)
+        concept_labels = np.unique(concept_df_incremental.loc[:,'concept']) # ['A','B','C',...]
+
+        if len(spatial_biases) != n_concepts:
+            raise ValueError('spatial_biases deve avere tanti elementi quanti sono i concetti')
+        if any(b < 0.0 or b > 1.0 for b in spatial_biases):
+            raise ValueError('spatial_biases deve contenere valori in [0, 1]')
+        if any(list_starts[i] >= list_starts[i+1] for i in range(n_concepts - 1)):
+            raise ValueError('list_starts deve essere strettamente crescente')
+        if list_starts[0] < 0 or list_starts[-1] >= win_size:
+            raise ValueError('list_starts fuori dai limiti della finestra')
+
+        concept_lengths = {}
+        for idx in range(n_concepts):
+            start = list_starts[idx]
+            end = list_starts[idx + 1] if idx + 1 < n_concepts else win_size
+            concept_lengths[concept_labels[idx]] = end - start
+
+        ## creation of sub dataframes with spatial bias specified (per_mal) for each concept
+        concept_dfs = {}
+        for i, label in enumerate(concept_labels):
+            perc_mal = spatial_biases[i]
+            sub = concept_df_incremental[concept_df_incremental['concept'] == label].copy(deep=True)
+            sub = self.reduce_dataset_proportion(dataframe=sub, perc=perc_mal)
+            concept_dfs[label] = {
+                'mal': sub[sub['macro_clusters'] == 1].copy(),
+                'ben': sub[sub['macro_clusters'] == 0].copy(),
+                'perc_mal': perc_mal
+            }
+            print(f'Concept {label} — size dopo riduzione: {len(sub)}')
+
+        ### check if there are enough samples for each concept
+        for label in concept_labels:
+            n_timesteps  = concept_lengths[label]
+            perc_mal     = concept_dfs[label]['perc_mal']
+            n_mal_needed = int(np.ceil(n_timesteps * perc_mal))
+            n_ben_needed = n_timesteps - n_mal_needed
+            n_mal_avail  = len(concept_dfs[label]['mal'])
+            n_ben_avail  = len(concept_dfs[label]['ben'])
+
+            print(f'\nConcetto {label}  (timestep: {n_timesteps}, perc_mal={perc_mal:.2f}):')
+            print(f'  Malevoli — richiesti: {n_mal_needed:>5} | disponibili: {n_mal_avail:>5}  {"OK" if n_mal_avail >= n_mal_needed else "WARN"}')
+            print(f'  Benigni  — richiesti: {n_ben_needed:>5} | disponibili: {n_ben_avail:>5}  {"OK" if n_ben_avail >= n_ben_needed else "WARN"}')
+
+            if n_mal_avail < n_mal_needed:
+                raise ValueError(
+                    f'Campioni malevoli insufficienti per il concetto {label}: '
+                    f'richiesti {n_mal_needed}, disponibili {n_mal_avail}. '
+                    f'Riduci win_size, modifica list_starts o aumenta il dataset sorgente.'
+                )
+            if n_ben_avail < n_ben_needed:
+                raise ValueError(
+                    f'Campioni benigni insufficienti per il concetto {label}: '
+                    f'richiesti {n_ben_needed}, disponibili {n_ben_avail}. '
+                    f'Riduci win_size, modifica list_starts o aumenta il dataset sorgente.'
+                )
+            
+        concept_mask = np.zeros(win_size, dtype=int)
+        for idx in range(n_concepts):
+            start = list_starts[idx]
+            end = list_starts[idx + 1] if idx + 1 < n_concepts else win_size
+            concept_mask[start:end] = idx
+
+        columns_to_select = list(concept_df_incremental.columns[:self.col_data]) + ['macro_clusters', 'concept']
+        used_indices = {label: {'mal': set(), 'ben': set()} for label in concept_labels}
+    
+        malign_probs = np.random.rand(win_size)
+
+        results = []
+        for i in tqdm(range(win_size), desc='Generazione stream incrementale'):
+            active_idx   = concept_mask[i]
+            active_label = concept_labels[active_idx]
+            perc_mal     = concept_dfs[active_label]['perc_mal']
+
+            df_mal = concept_dfs[active_label]['mal']
+            df_ben = concept_dfs[active_label]['ben']
+
+            sample = self.extract_sample(df_mal, df_ben, malign_probs[i], perc_mal) # estrazione dei campioni specificando i dataset da utilizzare
+
+            # aggiorna pool del concetto attivo senza reinserimento
+            if malign_probs[i] < perc_mal:
+                used_indices[active_label]['mal'].update(sample.index)
+                concept_dfs[active_label]['mal'] = df_mal.loc[
+                    ~df_mal.index.isin(used_indices[active_label]['mal'])
+                ]
+            else:
+                used_indices[active_label]['ben'].update(sample.index)
+                concept_dfs[active_label]['ben'] = df_ben.loc[
+                    ~df_ben.index.isin(used_indices[active_label]['ben'])
+                ]
+
+            sample_values = sample[columns_to_select].values.ravel()
+            results.append(np.append(sample_values, i).tolist())
+
+        self.first_k_columns = concept_df_incremental.columns[:self.col_data].tolist()
+        new_columns = self.first_k_columns + ['macro_clusters', 'concept', 'WIN']
+        win_df = pd.DataFrame(results, columns=new_columns)
+
+        perc_mal_reached = []
+        for label in concept_labels:
+            sub = win_df[win_df['concept'] == label]
+            p = len(sub[sub['macro_clusters'] == 1]) / len(sub) if len(sub) > 0 else 0.0
+            perc_mal_reached.append(p)
+            target = concept_dfs[label]['perc_mal']
+            print(f'Concetto {label}: perc_mal target={target:.3f} | raggiunta={p:.3f} | Δ={abs(p - target):.3f}')
+
+        if save_stream:
+            self.save_stream(win_df, filename)
+            data_path   = Path(f'{self.directory_stream}/{self.clustering_technique}')
+            data_path.mkdir(parents=True, exist_ok=True)
+            params_path = data_path / f'{nome_file_parametri}.txt'
+            with open(params_path, 'w') as f:
+                print(f'Tipo drift: incrementale con {n_concepts} concetti', file=f)
+                print(f'Win size: {win_size}', file=f)
+                print(f'List starts: {list_starts}', file=f)
+                print(f'Concept labels: {concept_labels}', file=f)
+                for label, p, bias in zip(concept_labels, perc_mal_reached, spatial_biases):
+                    print(f'Concetto {label}:', file=f)
+                    print(f'  spatial_bias (perc_mal target) : {bias:.3f}', file=f)
+                    print(f'  perc_mal raggiunta             : {p:.3f}', file=f)
+
+        return results
+        
