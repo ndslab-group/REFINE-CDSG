@@ -1,6 +1,8 @@
 # REFINE-CDSG
 
-This repository contains the implementation of the **Concept Drift Stream Generator (CDSG)** from the **REFINE framework**.
+This repository contains the official implementation of the **Concept Drift Stream Generator (CDSG)** from the **REFINE** framework. 
+
+An extended and updated version of the implementation (**E-REFINE** framework) is available in the [`main`](https://github.com/gabrielecosta/E-REFINE/tree/main) branch.
 
 ## Overview
 
@@ -38,4 +40,20 @@ Ensure you have pip (Python package installer) installed.
 All necessary dependencies can be installed using the `requirements.txt` file. These dependecies can be installed by running the following command in the terminal:
 ```bash
 pip install -r requirements.txt
+```
+
+## Citation
+
+If you use this repository in your research, please cite:
+
+```bibtex
+@article{Costa20261835,
+    author = {Costa, {Gabriele Nicolò} and {De Paola}, Alessandra and Drago, Salvatore and Ferraro, Pierluca and {Lo Re}, Giuseppe},
+    title = {{REFINE}: {Robust} {Evaluation} {Framework} for {IDS} under Concept Drift in Dynamic Environments},
+    year = {2026},
+    journal = {International Conference on Agents and Artificial Intelligence},
+    volume = {2},
+    pages = {1835--1846},
+    doi = {10.5220/0014447100004052},
+}
 ```
