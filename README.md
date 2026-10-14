@@ -57,7 +57,7 @@ All necessary dependencies can be installed using the `requirements.txt` file. T
 pip install -r requirements.txt
 ```
 
-<!-- ## Citation
+
 
 If you use this repository in your research, please cite REFINE framework:
 
@@ -71,4 +71,4 @@ If you use this repository in your research, please cite REFINE framework:
     pages = {1835--1846},
     doi = {10.5220/0014447100004052},
 }
-``` -->
+```
